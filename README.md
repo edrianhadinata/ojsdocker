@@ -137,6 +137,58 @@ docker compose down -v
 
 ---
 
+## 🔁 Backup & Restore Antar Server
+
+Untuk memindahkan OJS beserta database dan file antar server, gunakan skrip berikut:
+
+### 1) Backup dari server lama
+
+Jalankan dari root project:
+
+```powershell
+powershell -ExecutionPolicy Bypass -File .\scripts\backup-ojs.ps1
+```
+
+Hasil backup akan dibuat di folder `backup/<timestamp>/` dengan isi:
+
+- `db.sql`
+- `public.tar.gz`
+- `cache.tar.gz`
+- `files.tar.gz` (jika files directory ditemukan)
+- `config.inc.php` (opsional)
+- `manifest.txt`
+
+### 2) Pindahkan folder backup ke server baru
+
+Salin folder `backup/<timestamp>/` ke server tujuan (scp/rsync/zip).
+
+### 3) Restore di server baru
+
+1. Clone repo dan siapkan `.env`
+2. Jalankan container:
+
+```bash
+docker compose up -d
+```
+
+3. Jalankan restore:
+
+```powershell
+powershell -ExecutionPolicy Bypass -File .\scripts\restore-ojs.ps1 -BackupDir .\backup\<timestamp>
+```
+
+4. Restart app:
+
+```bash
+docker compose restart ojs_app
+```
+
+> Catatan:
+> - Pastikan nilai `DB_NAME`, `DB_USER`, dan `DB_PASSWORD` di `.env` server tujuan sesuai.
+> - Proses restore akan menimpa isi database dan file pada container tujuan.
+
+---
+
 ## ⚠️ Catatan Penting
 
 - PHP 8.4 kompatibel penuh dengan **OJS 3.4.x ke atas**
