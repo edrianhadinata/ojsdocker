@@ -1,0 +1,13 @@
+# Secrets
+.env
+
+# Docker runtime data
+ojs_db_data/
+ojs_cache/
+ojs_public/
+logs/
+
+# Optional local files
+*.log
+.DS_Store
+Thumbs.db

@@ -1,0 +1,99 @@
+version: "3.9"
+
+# ─────────────────────────────────────────────────────────────────────────────
+# OJS Docker Stack — Apache2 + PHP 8.4 + MySQL 8.0
+# Cara pakai:
+#   1. Salin .env.example ke .env dan sesuaikan nilai
+#   2. docker compose up -d --build
+#   3. Buka http://localhost:8080 dan ikuti wizard instalasi
+# ─────────────────────────────────────────────────────────────────────────────
+
+services:
+
+  # ── OJS App (Apache2 + PHP 8.4) ──────────────────────────────────────────
+  ojs_app:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: ojs_app
+    restart: unless-stopped
+    ports:
+      - "${HTTP_PORT:-8080}:80"
+      - "${HTTPS_PORT:-8443}:443"
+    environment:
+      SERVERNAME: ${SERVERNAME:-localhost}
+      OJS_CLI_INSTALL: ${OJS_CLI_INSTALL:-0}
+      DB_HOST: ojs_db
+      DB_PORT: 3306
+      DB_NAME: ${DB_NAME:-ojs}
+      DB_USER: ${DB_USER:-ojs}
+      DB_PASSWORD: ${DB_PASSWORD:-ojspassword}
+    volumes:
+      # File upload OJS (persisten, di luar webroot)
+      # - ojs_files:/var/www/html/files_data_journal
+      # Folder public (gambar, PDF, dll)
+      - ojs_public:/var/www/html/public
+      # Cache
+      - ojs_cache:/var/www/html/cache
+      # config.inc.php (mount setelah instalasi pertama)
+      # - ./volumes/config/config.inc.php:/var/www/html/config.inc.php
+      # Log Apache
+      - ./logs/apache:/var/log/apache
+      # mount file ojs
+      #- ./src/html:/var/www/html
+    depends_on:
+      ojs_db:
+        condition: service_healthy
+    networks:
+      - ojs_network
+
+  # ── MySQL 8.0 ─────────────────────────────────────────────────────────────
+  ojs_db:
+    image: mysql:8.0
+    container_name: ojs_db
+    restart: unless-stopped
+    environment:
+      MYSQL_ROOT_PASSWORD: ${DB_ROOT_PASSWORD:-rootpassword}
+      MYSQL_DATABASE: ${DB_NAME:-ojs}
+      MYSQL_USER: ${DB_USER:-ojs}
+      MYSQL_PASSWORD: ${DB_PASSWORD:-ojspassword}
+    volumes:
+      - ojs_db_data:/var/lib/mysql
+      - ./config/mysql.cnf:/etc/mysql/conf.d/ojs.cnf:ro
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "localhost",
+             "-u", "${DB_USER:-ojs}", "-p${DB_PASSWORD:-ojspassword}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
+    networks:
+      - ojs_network
+
+  # ── phpMyAdmin (opsional, untuk manajemen DB via browser) ─────────────────
+  phpmyadmin:
+    image: phpmyadmin:latest
+    container_name: ojs_phpmyadmin
+    restart: unless-stopped
+    ports:
+      - "${PMA_PORT:-8081}:80"
+    environment:
+      PMA_HOST: ojs_db
+      PMA_PORT: 3306
+      PMA_ARBITRARY: 1
+    depends_on:
+      - ojs_db
+    networks:
+      - ojs_network
+
+# ─── Named Volumes ────────────────────────────────────────────────────────────
+volumes:
+  ojs_db_data:
+  ojs_files:
+  ojs_public:
+  ojs_cache:
+
+# ─── Network ─────────────────────────────────────────────────────────────────
+networks:
+  ojs_network:
+    driver: bridge
